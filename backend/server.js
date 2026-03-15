@@ -17,7 +17,7 @@ app.use(cors({ origin: '*' }));
 app.use(morgan('dev'));
 app.use(express.json());
 
-// ── Startup checks ────────────────────────────────────────────────────────────
+// ── Startup ───────────────────────────────────────────────────────────────────
 async function checkTools() {
   for (const cmd of ['yt-dlp --version', 'ffmpeg -version', 'ffprobe -version']) {
     try {
@@ -38,116 +38,119 @@ function formatFileSize(bytes) {
   while (s > 1024 && u < 3) { s /= 1024; u++; }
   return `${s.toFixed(1)} ${units[u]}`;
 }
-
 function sanitizeFilename(name = 'video') {
   return name.replace(/[^\w\s\-áéíóúüñÁÉÍÓÚÜÑ]/gi, '_').trim().substring(0, 100);
 }
-
 function parseProgress(line) {
   const m = line.match(/\[download\]\s+([\d.]+)%.*?at\s+([\d.]+\s*\w+\/s).*?ETA\s+([\d:]+)/);
   if (m) return { percent: parseFloat(m[1]), speed: m[2].trim(), eta: m[3] };
-  if (line.includes('[VideoConvertor]') || line.includes('Recoding'))
-    return { percent: 95, speed: null, eta: null };
-  if (line.includes('[Merger]') || line.includes('Merging'))
-    return { percent: 93, speed: null, eta: null };
-  if (line.includes('[ExtractAudio]'))
-    return { percent: 96, speed: null, eta: null };
+  if (line.includes('[VideoConvertor]') || line.includes('Recoding')) return { percent: 95, speed: null, eta: null };
+  if (line.includes('[Merger]') || line.includes('Merging'))          return { percent: 93, speed: null, eta: null };
+  if (line.includes('[ExtractAudio]'))                                return { percent: 96, speed: null, eta: null };
   return null;
 }
-
 function notifyClients(job) {
   if (!job.sseClients.length) return;
-  const payload = JSON.stringify({
-    status: job.status, progress: job.progress,
-    speed: job.speed, eta: job.eta,
-    error: job.error, filename: job.filename,
-  });
-  for (const c of job.sseClients) {
-    try { c.write(`data: ${payload}\n\n`); } catch {}
-  }
+  const payload = JSON.stringify({ status: job.status, progress: job.progress,
+    speed: job.speed, eta: job.eta, error: job.error, filename: job.filename });
+  for (const c of job.sseClients) { try { c.write(`data: ${payload}\n\n`); } catch {} }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLATFORM ARGS
 //
-// YouTube FIX: android_testsuite is the most reliable client from server IPs.
-//   It's Google's internal Android testing client — no bot-check, no CAPTCHA,
-//   no signature restrictions. Works reliably from datacenter IPs in 2025.
-//   We list multiple clients so yt-dlp auto-falls back if one is patched.
+// KEY DESIGN: infoArgs vs dlArgs are SEPARATE.
+// Postprocessing flags (--recode-video, --postprocessor-args) are DOWNLOAD-ONLY
+// and must NOT be sent to --dump-json / --flat-playlist commands.
 //
-// Instagram FIX: needs proper browser UA + Accept headers. Public posts work
-//   without cookies when the right headers are sent.
+// YouTube: po=true is the "proof of origin" token that the new yt-dlp versions
+//   use to bypass the bot check on server IPs. Combined with android_testsuite
+//   client this is the most reliable combination as of 2026.
 //
-// TikTok FIX: format selector rejects bytevc1/av01, then --recode-video forces
-//   H.264 via ffmpeg postprocessor (integrated, not a separate process step).
+// TikTok: We tell yt-dlp to use --recode-video only during DOWNLOAD (dlArgs),
+//   not during info fetch (infoArgs).
+//
+// Instagram: use mobile app UA which doesn't require login for public reels.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const COMMON_ARGS = [
+const COMMON_INFO_ARGS = [
+  '--retries', '3',
+  '--no-check-certificates',
+  '--socket-timeout', '30',
+];
+
+const COMMON_DL_ARGS = [
   '--retries', '5',
   '--fragment-retries', '5',
   '--no-check-certificates',
+  '--socket-timeout', '30',
 ];
 
-// youtube: android_testsuite → tv_embedded → ios → web_creator  (try in order)
-const YT_ARGS = [
-  '--extractor-args', 'youtube:player_client=android_testsuite,tv_embedded,ios,web_creator',
-  '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+// ── YouTube ───────────────────────────────────────────────────────────────────
+// po=true enables the proof-of-origin token (new yt-dlp 2026 feature)
+const YT_INFO_ARGS = [
+  '--extractor-args', 'youtube:player_client=android_testsuite,tv_embedded,ios;po_token=true',
+  '--user-agent', 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip',
   '--add-headers', 'X-YouTube-Client-Name:3',
-  '--add-headers', 'X-YouTube-Client-Version:19.09.37',
+  '--add-headers', 'X-YouTube-Client-Version:19.29.37',
 ];
+const YT_DL_ARGS = [...YT_INFO_ARGS];
 
-// Instagram: full Chrome UA + required Accept headers for public content
-const IG_ARGS = [
-  '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  '--add-headers', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-  '--add-headers', 'Accept-Language:en-US,en;q=0.9',
-  '--add-headers', 'Sec-Fetch-Mode:navigate',
-  '--add-headers', 'Sec-Fetch-Site:none',
-];
-
-// TikTok: mobile UA + force H.264 re-encode
-const TIKTOK_ARGS = [
-  '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+// ── TikTok ────────────────────────────────────────────────────────────────────
+// infoArgs: only UA and headers (NO recode flags — invalid for dump-json)
+// dlArgs: adds recode-video to force H.264 output
+const TIKTOK_INFO_ARGS = [
+  '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
   '--add-headers', 'Referer:https://www.tiktok.com/',
+  '--add-headers', 'Accept-Language:en-US,en;q=0.9',
+];
+const TIKTOK_DL_ARGS = [
+  ...TIKTOK_INFO_ARGS,
   '--recode-video', 'mp4',
   '--postprocessor-args', 'ffmpeg:-c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart',
 ];
 
-function getExtraArgs(url) {
-  if (/youtu\.?be|youtube\.com/i.test(url))    return YT_ARGS;
-  if (/instagram\.com/i.test(url))             return IG_ARGS;
-  if (/tiktok\.com/i.test(url))                return TIKTOK_ARGS;
+// ── Instagram ─────────────────────────────────────────────────────────────────
+// Instagram public reels work with Instagram mobile app UA
+const IG_INFO_ARGS = [
+  '--user-agent', 'Instagram 325.0.0.34.90 Android (31/12; 420dpi; 1080x2340; Google/google; Pixel 6; redfin; redfin; en_US; 554993463)',
+  '--add-headers', 'Accept-Language:en-US,en;q=0.9',
+  '--add-headers', 'X-IG-App-ID:936619743392459',
+];
+const IG_DL_ARGS = [...IG_INFO_ARGS];
+
+function getPlatformInfoArgs(url) {
+  if (/youtu\.?be|youtube\.com/i.test(url)) return YT_INFO_ARGS;
+  if (/tiktok\.com/i.test(url))             return TIKTOK_INFO_ARGS;
+  if (/instagram\.com/i.test(url))          return IG_INFO_ARGS;
+  return [];
+}
+function getPlatformDlArgs(url) {
+  if (/youtu\.?be|youtube\.com/i.test(url)) return YT_DL_ARGS;
+  if (/tiktok\.com/i.test(url))             return TIKTOK_DL_ARGS;
+  if (/instagram\.com/i.test(url))          return IG_DL_ARGS;
   return [];
 }
 
 // ── Format selector ───────────────────────────────────────────────────────────
 function buildVideoFormatSelector(height, url = '') {
   const h = parseInt(height, 10) || 1080;
-
   if (/tiktok\.com/i.test(url)) {
     return [
       `bestvideo[height<=${h}][vcodec=h264]+bestaudio`,
       `bestvideo[height<=${h}][vcodec^=avc]+bestaudio`,
       `bestvideo[height<=${h}][vcodec!*=bytevc1][vcodec!*=av01]+bestaudio`,
-      `best[height<=${h}]`,
-      'best',
+      `best[height<=${h}]`, 'best',
     ].join('/');
   }
-
   return [
     `bestvideo[height<=${h}][vcodec^=avc][ext=mp4]+bestaudio[acodec^=mp4a][ext=m4a]`,
     `bestvideo[height<=${h}][vcodec^=avc]+bestaudio[acodec^=mp4a]`,
     `bestvideo[height<=${h}][vcodec^=avc]+bestaudio`,
     `best[height<=${h}][vcodec^=avc]`,
     `bestvideo[height<=${h}]+bestaudio`,
-    `best[height<=${h}]`,
-    'best',
+    `best[height<=${h}]`, 'best',
   ].join('/');
-}
-
-// Build the final arg array (platform args go BEFORE base args so yt-dlp sees them first)
-function buildArgs(url, baseArgs) {
-  return [...COMMON_ARGS, ...getExtraArgs(url), ...baseArgs, url];
 }
 
 // ── GET /api/info?url=... ─────────────────────────────────────────────────────
@@ -155,95 +158,86 @@ app.get('/api/info', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'Se requiere una URL.' });
 
-  const safeUrl = url.replace(/["`;]/g, '');
+  const safeUrl  = url.replace(/["`;]/g, '');
   const isPlaylist =
     /\/playlist\?|\/sets\/|\/album\/|\/collection/.test(safeUrl) ||
     (safeUrl.includes('list=') && !safeUrl.includes('watch?v='));
 
-  const cmd_args = isPlaylist
-    ? ['--flat-playlist', '--dump-single-json', '--no-warnings']
-    : ['--no-playlist', '--dump-json', '--no-warnings'];
+  // Build args: common + platform-specific INFO args + command flags + url
+  const args = [
+    ...COMMON_INFO_ARGS,
+    ...getPlatformInfoArgs(safeUrl),
+    ...(isPlaylist
+      ? ['--flat-playlist', '--dump-single-json', '--no-warnings']
+      : ['--no-playlist', '--dump-json', '--no-warnings']),
+    safeUrl,
+  ];
 
-  const args   = buildArgs(safeUrl, cmd_args);
   const cmdStr = `yt-dlp ${args.map(a => `"${a}"`).join(' ')}`;
-  console.log(`[info] ${safeUrl.slice(0, 60)}`);
+  console.log(`[info] ${safeUrl.slice(0, 70)}`);
 
   try {
     const { stdout } = await execAsync(cmdStr, { timeout: 60000 });
     const info = JSON.parse(stdout);
 
-    // ── Playlist ──────────────────────────────────────────────────────────
+    // Playlist
     if (isPlaylist && (info._type === 'playlist' || Array.isArray(info.entries))) {
       const entries = (info.entries || []).slice(0, 200).map(e => ({
-        id:        e.id || randomUUID(),
-        title:     e.title || 'Sin título',
-        url:       e.webpage_url || e.url
-                   || (e.ie_key === 'Youtube'
-                       ? `https://www.youtube.com/watch?v=${e.id}`
-                       : null)
-                   || safeUrl,
+        id: e.id || randomUUID(),
+        title: e.title || 'Sin título',
+        url: e.webpage_url || e.url
+          || (e.ie_key === 'Youtube' ? `https://www.youtube.com/watch?v=${e.id}` : null)
+          || safeUrl,
         duration:  e.duration  || null,
         thumbnail: e.thumbnail || e.thumbnails?.[0]?.url || null,
       }));
       return res.json({
-        isPlaylist: true,
-        title:      info.title    || 'Playlist',
-        uploader:   info.uploader || info.channel || null,
-        entryCount: entries.length,
-        entries,
+        isPlaylist: true, title: info.title || 'Playlist',
+        uploader: info.uploader || info.channel || null,
+        entryCount: entries.length, entries,
         thumbnail: info.thumbnail || info.thumbnails?.[0]?.url || entries[0]?.thumbnail || null,
       });
     }
 
-    // ── Single video ──────────────────────────────────────────────────────
+    // Single video
     const formats    = info.formats || [];
     const heightSeen = new Set();
     const videoQualities = formats
       .filter(f => f.vcodec && f.vcodec !== 'none' && f.height)
       .sort((a, b) => (b.height || 0) - (a.height || 0))
-      .filter(f => {
-        if (heightSeen.has(f.height)) return false;
-        heightSeen.add(f.height);
-        return true;
-      })
+      .filter(f => { if (heightSeen.has(f.height)) return false; heightSeen.add(f.height); return true; })
       .map(f => ({
-        height:   f.height,
-        label:    `${f.height}p${f.fps && f.fps > 30 ? Math.round(f.fps) : ''}`,
+        height: f.height,
+        label: `${f.height}p${f.fps && f.fps > 30 ? Math.round(f.fps) : ''}`,
         filesize: formatFileSize(f.filesize || f.filesize_approx),
       }));
 
     const isAudioOnly = videoQualities.length === 0;
-
     res.json({
-      isPlaylist:  false,
+      isPlaylist: false,
       title:       info.title       || 'Sin título',
       description: info.description ? info.description.substring(0, 350) : null,
       duration:    info.duration    || null,
       thumbnail:   info.thumbnail   || null,
       uploader:    info.uploader    || info.channel || null,
       platform:    info.extractor_key || 'Web',
-      isAudioOnly,
-      videoQualities,
+      isAudioOnly, videoQualities,
       audioExportFormats: isAudioOnly
         ? ['m4a', 'flac', 'wav', 'opus']
         : ['mp3', 'm4a', 'flac', 'wav', 'ogg'],
     });
 
   } catch (err) {
-    console.error('[/api/info]', err.message?.slice(0, 400));
+    const raw = err.message || '';
+    console.error('[/api/info]', raw.slice(0, 300));
     const msg =
-      /Sign in|bot|confirm|please sign/i.test(err.message)
-        ? 'YouTube bloqueó la petición. Intenta de nuevo en unos segundos.'
-      : /Unsupported URL/i.test(err.message)
-        ? 'URL no compatible o no encontrada.'
-      : /timeout/i.test(err.message)
-        ? 'Tiempo de espera agotado. Intenta de nuevo.'
-      : /[Pp]rivate/i.test(err.message)
-        ? 'Este video es privado.'
-      : /Unable to extract/i.test(err.message)
-        ? 'No se pudo extraer el video. La plataforma puede estar bloqueando servidores.'
-      : /[Ll]ogin|[Aa]uthentication/i.test(err.message)
-        ? 'Este video requiere iniciar sesión para ser descargado.'
+      /Sign in|bot|confirm|please sign/i.test(raw)
+        ? 'YouTube detectó el servidor. Intenta en unos segundos o prueba con otro video.'
+      : /Unsupported URL/i.test(raw)   ? 'URL no compatible.'
+      : /timeout|timed out/i.test(raw) ? 'Tiempo de espera agotado. Intenta de nuevo.'
+      : /[Pp]rivate/i.test(raw)        ? 'Este video es privado.'
+      : /[Ll]ogin|auth/i.test(raw)     ? 'Este contenido requiere iniciar sesión.'
+      : /Unable to extract/i.test(raw) ? 'No se pudo extraer el video.'
       : 'No se pudo analizar el enlace. Verifica que sea válido y público.';
     res.status(500).json({ error: msg });
   }
@@ -251,10 +245,7 @@ app.get('/api/info', async (req, res) => {
 
 // ── POST /api/jobs ────────────────────────────────────────────────────────────
 app.post('/api/jobs', (req, res) => {
-  const {
-    url, type = 'video', quality = '1080',
-    format = 'mp4', title = 'video',
-  } = req.body;
+  const { url, type = 'video', quality = '1080', format = 'mp4', title = 'video' } = req.body;
   if (!url) return res.status(400).json({ error: 'Falta la URL.' });
 
   const jobId     = randomUUID();
@@ -262,12 +253,9 @@ app.post('/api/jobs', (req, res) => {
   const tempTpl   = join(tmpdir(), `aztardl_${tempId}.%(ext)s`);
   const safeTitle = sanitizeFilename(title);
 
-  const job = {
-    id: jobId, tempId, status: 'running',
-    progress: 0, speed: null, eta: null,
-    filePath: null, ext: null, filename: null, error: null,
-    sseClients: [],
-  };
+  const job = { id: jobId, tempId, status: 'running', progress: 0,
+    speed: null, eta: null, filePath: null, ext: null,
+    filename: null, error: null, sseClients: [] };
   jobs.set(jobId, job);
 
   const dlBaseArgs = type === 'audio'
@@ -276,7 +264,12 @@ app.post('/api/jobs', (req, res) => {
     : ['-f', buildVideoFormatSelector(quality, url), '--merge-output-format', 'mp4',
        '-o', tempTpl, '--no-playlist', '--no-warnings'];
 
-  const args = buildArgs(url, dlBaseArgs);
+  const args = [
+    ...COMMON_DL_ARGS,
+    ...getPlatformDlArgs(url),
+    ...dlBaseArgs,
+    url,
+  ];
 
   const ytdlp = spawn('yt-dlp', args);
 
@@ -292,28 +285,21 @@ app.post('/api/jobs', (req, res) => {
       f.startsWith(`aztardl_${tempId}`) &&
       !f.endsWith('.part') && !f.endsWith('.ytdl') && !f.endsWith('.json')
     );
-
     if (code !== 0 || !files.length) {
-      job.status = 'error';
-      job.error  = 'La descarga falló. Prueba otra calidad o formato.';
+      job.status = 'error'; job.error = 'La descarga falló. Prueba otra calidad o formato.';
       notifyClients(job);
       job.sseClients.forEach(c => { try { c.end(); } catch {} });
       job.sseClients = [];
       return;
     }
-
-    const chosen     = files.find(f => f.endsWith('.mp4')) || files[0];
-    job.filePath     = join(tmpdir(), chosen);
-    job.ext          = chosen.split('.').pop().toLowerCase();
-    job.filename     = `${safeTitle}.${job.ext}`;
-    job.progress     = 100;
-    job.eta          = null;
-    job.status       = 'done';
-
+    const chosen   = files.find(f => f.endsWith('.mp4')) || files[0];
+    job.filePath   = join(tmpdir(), chosen);
+    job.ext        = chosen.split('.').pop().toLowerCase();
+    job.filename   = `${safeTitle}.${job.ext}`;
+    job.progress   = 100; job.eta = null; job.status = 'done';
     notifyClients(job);
     job.sseClients.forEach(c => { try { c.end(); } catch {} });
     job.sseClients = [];
-
     setTimeout(() => {
       files.forEach(f => { try { unlinkSync(join(tmpdir(), f)); } catch {} });
       jobs.delete(jobId);
@@ -321,8 +307,7 @@ app.post('/api/jobs', (req, res) => {
   });
 
   ytdlp.on('error', (err) => {
-    job.status = 'error';
-    job.error  = `Error al iniciar yt-dlp: ${err.message}`;
+    job.status = 'error'; job.error = `Error: ${err.message}`;
     notifyClients(job);
     job.sseClients.forEach(c => { try { c.end(); } catch {} });
     job.sseClients = [];
@@ -335,17 +320,12 @@ app.post('/api/jobs', (req, res) => {
 app.get('/api/jobs/:id/progress', (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job no encontrado.' });
-
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
-
-  res.write(`data: ${JSON.stringify({
-    status: job.status, progress: job.progress, speed: job.speed,
-    eta: job.eta, error: job.error, filename: job.filename,
-  })}\n\n`);
-
+  res.write(`data: ${JSON.stringify({ status: job.status, progress: job.progress,
+    speed: job.speed, eta: job.eta, error: job.error, filename: job.filename })}\n\n`);
   if (job.status === 'done' || job.status === 'error') { res.end(); return; }
   job.sseClients.push(res);
   req.on('close', () => { job.sseClients = job.sseClients.filter(c => c !== res); });
@@ -354,14 +334,11 @@ app.get('/api/jobs/:id/progress', (req, res) => {
 // ── GET /api/jobs/:id/file ────────────────────────────────────────────────────
 app.get('/api/jobs/:id/file', (req, res) => {
   const job = jobs.get(req.params.id);
-  if (!job || job.status !== 'done' || !job.filePath) {
+  if (!job || job.status !== 'done' || !job.filePath)
     return res.status(404).json({ error: 'Archivo no disponible o expirado.' });
-  }
-  const mime = {
-    mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska',
-    mp3: 'audio/mpeg', m4a: 'audio/mp4', flac: 'audio/flac',
-    wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/opus',
-  };
+  const mime = { mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska',
+    mp3:'audio/mpeg', m4a:'audio/mp4', flac:'audio/flac',
+    wav:'audio/wav', ogg:'audio/ogg', opus:'audio/opus' };
   try {
     const size = statSync(job.filePath).size;
     res.setHeader('Content-Type', mime[job.ext] || 'application/octet-stream');
@@ -369,9 +346,7 @@ app.get('/api/jobs/:id/file', (req, res) => {
     res.setHeader('Content-Disposition',
       `attachment; filename*=UTF-8''${encodeURIComponent(job.filename || 'video')}`);
     createReadStream(job.filePath).pipe(res);
-  } catch {
-    res.status(500).json({ error: 'No se pudo leer el archivo.' });
-  }
+  } catch { res.status(500).json({ error: 'No se pudo leer el archivo.' }); }
 });
 
 app.listen(PORT, () => console.log(`\n🏛️  AztarDL → http://localhost:${PORT}\n`));
