@@ -11,8 +11,6 @@ import { randomUUID } from 'crypto';
 const execAsync = promisify(exec);
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// ── In-memory job store ───────────────────────────────────────────────────────
 const jobs = new Map();
 
 app.use(cors({ origin: '*' }));
@@ -62,7 +60,25 @@ function notifyClients(job) {
   }
 }
 
-// Prefer H.264 (avc1) + AAC — universal codecs. Avoids HEVC/AV1/VP9.
+// ── Anti-bot bypass flags ─────────────────────────────────────────────────────
+// These args are added to every yt-dlp call to bypass bot detection on
+// YouTube, TikTok, Instagram and similar platforms when running from a server.
+const BYPASS_ARGS = [
+  // YouTube: use Android client (no bot check) then TV client as fallback
+  '--extractor-args', 'youtube:player_client=android,web',
+  // Realistic browser User-Agent
+  '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  // Add common browser headers
+  '--add-headers', 'Accept-Language:en-US,en;q=0.9',
+  '--add-headers', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  // Retry on network errors
+  '--retries', '3',
+  '--fragment-retries', '3',
+  // Sleep between requests to avoid rate limiting
+  '--sleep-requests', '1',
+];
+
+// ── H.264 preferred format selector ──────────────────────────────────────────
 function buildVideoFormatSelector(height) {
   const h = parseInt(height, 10) || 1080;
   return [
@@ -89,11 +105,14 @@ app.get('/api/info', async (req, res) => {
     safeUrl.includes('/collection') ||
     (safeUrl.includes('list=') && !safeUrl.includes('watch?v='));
 
+  // Build bypass args as string for execAsync
+  const bypassStr = BYPASS_ARGS.map(a => `"${a}"`).join(' ');
+
   try {
     if (looksLikePlaylist) {
       const { stdout } = await execAsync(
-        `yt-dlp --flat-playlist --dump-single-json --no-warnings "${safeUrl}"`,
-        { timeout: 40000 }
+        `yt-dlp --flat-playlist --dump-single-json --no-warnings ${bypassStr} "${safeUrl}"`,
+        { timeout: 60000 }
       );
       const info = JSON.parse(stdout);
 
@@ -121,8 +140,8 @@ app.get('/api/info', async (req, res) => {
 
     // Single video/audio
     const { stdout } = await execAsync(
-      `yt-dlp --no-playlist --dump-json --no-warnings "${safeUrl}"`,
-      { timeout: 30000 }
+      `yt-dlp --no-playlist --dump-json --no-warnings ${bypassStr} "${safeUrl}"`,
+      { timeout: 45000 }
     );
     const info = JSON.parse(stdout);
     const formats = info.formats || [];
@@ -158,15 +177,18 @@ app.get('/api/info', async (req, res) => {
   } catch (err) {
     console.error('[/api/info]', err.message?.slice(0, 300));
     const msg =
-      err.message?.includes('Unsupported URL') ? 'URL no compatible o no encontrada.' :
-      err.message?.includes('timeout') ? 'Tiempo de espera agotado.' :
-      err.message?.includes('Private') ? 'Este video es privado.' :
-      'No se pudo analizar el enlace. Verifica que sea válido y público.';
+      err.message?.includes('Sign in') || err.message?.includes('bot')
+        ? 'YouTube requiere autenticación en servidores. Prueba con un video de otra plataforma o usa Twitter/X, Vimeo, SoundCloud.'
+        : err.message?.includes('Unsupported URL') ? 'URL no compatible o no encontrada.'
+        : err.message?.includes('timeout') ? 'Tiempo de espera agotado.'
+        : err.message?.includes('Private') ? 'Este video es privado.'
+        : err.message?.includes('Unable to extract') ? 'No se pudo extraer el video. La plataforma puede estar bloqueando accesos desde servidores.'
+        : 'No se pudo analizar el enlace. Verifica que sea válido y público.';
     res.status(500).json({ error: msg });
   }
 });
 
-// ── POST /api/jobs — crear y ejecutar una descarga en background ──────────────
+// ── POST /api/jobs ────────────────────────────────────────────────────────────
 app.post('/api/jobs', (req, res) => {
   const { url, type = 'video', quality = '1080', format = 'mp4', title = 'video' } = req.body;
   if (!url) return res.status(400).json({ error: 'Falta la URL.' });
@@ -187,6 +209,7 @@ app.post('/api/jobs', (req, res) => {
   let args;
   if (type === 'audio') {
     args = [
+      ...BYPASS_ARGS,
       '-f', 'bestaudio/best',
       '-x', '--audio-format', format,
       '--audio-quality', '0',
@@ -195,6 +218,7 @@ app.post('/api/jobs', (req, res) => {
     ];
   } else {
     args = [
+      ...BYPASS_ARGS,
       '-f', buildVideoFormatSelector(quality),
       '--merge-output-format', format === 'webm' ? 'webm' : 'mp4',
       '-o', tempTemplate,
@@ -237,7 +261,6 @@ app.post('/api/jobs', (req, res) => {
     job.sseClients.forEach(c => { try { c.end(); } catch {} });
     job.sseClients = [];
 
-    // Auto-eliminar archivo después de 10 min
     setTimeout(() => {
       if (job.filePath) { try { unlinkSync(job.filePath); } catch {} }
       jobs.delete(jobId);
@@ -255,7 +278,7 @@ app.post('/api/jobs', (req, res) => {
   res.json({ jobId });
 });
 
-// ── GET /api/jobs/:id/progress — SSE de progreso ─────────────────────────────
+// ── GET /api/jobs/:id/progress ────────────────────────────────────────────────
 app.get('/api/jobs/:id/progress', (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job no encontrado.' });
@@ -274,7 +297,7 @@ app.get('/api/jobs/:id/progress', (req, res) => {
   req.on('close', () => { job.sseClients = job.sseClients.filter(c => c !== res); });
 });
 
-// ── GET /api/jobs/:id/file — stream del archivo completado ───────────────────
+// ── GET /api/jobs/:id/file ────────────────────────────────────────────────────
 app.get('/api/jobs/:id/file', (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job || job.status !== 'done' || !job.filePath) {
