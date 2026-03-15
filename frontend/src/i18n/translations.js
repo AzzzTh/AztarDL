@@ -1,0 +1,242 @@
+export const translations = {
+  es: {
+    nav: { howTo: '¿Cómo se usa?', contact: 'Contacto' },
+    lang: 'Idioma',
+    theme: { dark: 'Modo oscuro', light: 'Modo claro' },
+    home: {
+      badge: 'Gratis · Sin límites · Alta calidad',
+      title: 'Descarga videos y audios',
+      titleAccent: 'de cualquier plataforma',
+      subtitle: 'Pega un enlace de YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud y más. Sin registro, sin publicidad.',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: 'Pegar', analyzeBtn: 'Analizar', analyzing: 'Analizando...', clearBtn: 'Limpiar',
+    },
+    media: { by: 'Por', duration: 'Duración', platform: 'Plataforma', preview: 'Vista previa', noDescription: 'Sin descripción disponible.' },
+    download: {
+      title: 'Opciones de descarga', selectQuality: 'Calidad', selectFormat: 'Formato',
+      downloadBtn: 'Descargar', downloading: 'Descargando...', done: '¡Descarga lista!',
+      typeVideo: 'Video', typeAudio: 'Solo audio', audioOnly: 'Contenido de audio',
+      audioFormats: 'Formato de audio', addToQueue: 'Agregar a cola',
+    },
+    queue: {
+      title: 'Cola de descargas', waiting: 'En espera…',
+      eta: 'Tiempo restante', remove: 'Quitar', clearDone: 'Limpiar completados',
+    },
+    playlist: {
+      tag: 'Playlist', videos: 'videos', addAll: 'Agregar todo a la cola',
+      added: 'elementos agregados', contents: 'Contenido', more: 'más',
+    },
+    errors: { emptyUrl: 'Por favor ingresa un enlace.', invalid: 'Enlace no válido o no compatible.', fetch: 'No se pudo analizar. Verifica el enlace.' },
+    howTo: {
+      title: '¿Cómo usar AztarDL?', subtitle: 'Descarga en 4 pasos simples',
+      steps: [
+        { n: '01', title: 'Copia el enlace', desc: 'Ve al video o audio en cualquier plataforma (YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud…) y copia la URL.' },
+        { n: '02', title: 'Pega el enlace', desc: 'Regresa a AztarDL y pega el enlace usando el botón "Pegar" o Ctrl+V (Cmd+V en Mac).' },
+        { n: '03', title: 'Elige calidad y formato', desc: 'Pulsa "Analizar" o Enter. AztarDL detectará el contenido y mostrará todas las calidades y formatos disponibles.' },
+        { n: '04', title: 'Descarga', desc: 'Selecciona calidad y formato, haz clic en "Agregar a cola". El archivo se descargará automáticamente.' },
+      ],
+      tips: {
+        title: 'Consejos útiles',
+        items: [
+          'Puedes descargar solo el audio seleccionando la pestaña "Solo audio".',
+          'Para playlists, pega el enlace de la lista y usa "Agregar todo a la cola".',
+          'Los videos se descargan en H.264 (compatible con todos los reproductores).',
+          'AztarDL es compatible con más de 1,000 plataformas gracias a yt-dlp.',
+        ],
+      },
+    },
+  },
+
+  en: {
+    nav: { howTo: 'How to use?', contact: 'Contact' },
+    lang: 'Language',
+    theme: { dark: 'Dark mode', light: 'Light mode' },
+    home: {
+      badge: 'Free · No limits · High quality',
+      title: 'Download videos and audio',
+      titleAccent: 'from any platform',
+      subtitle: 'Paste a link from YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud and more. No sign-up, no ads.',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: 'Paste', analyzeBtn: 'Analyze', analyzing: 'Analyzing...', clearBtn: 'Clear',
+    },
+    media: { by: 'By', duration: 'Duration', platform: 'Platform', preview: 'Preview', noDescription: 'No description available.' },
+    download: {
+      title: 'Download options', selectQuality: 'Quality', selectFormat: 'Format',
+      downloadBtn: 'Download', downloading: 'Downloading...', done: 'Download ready!',
+      typeVideo: 'Video', typeAudio: 'Audio only', audioOnly: 'Audio content',
+      audioFormats: 'Audio format', addToQueue: 'Add to queue',
+    },
+    queue: {
+      title: 'Download queue', waiting: 'Waiting…',
+      eta: 'Time left', remove: 'Remove', clearDone: 'Clear completed',
+    },
+    playlist: {
+      tag: 'Playlist', videos: 'videos', addAll: 'Add all to queue',
+      added: 'items added', contents: 'Contents', more: 'more',
+    },
+    errors: { emptyUrl: 'Please enter a link.', invalid: 'Invalid or unsupported link.', fetch: 'Could not analyze. Check the link.' },
+    howTo: {
+      title: 'How to use AztarDL?', subtitle: 'Download in 4 simple steps',
+      steps: [
+        { n: '01', title: 'Copy the link', desc: 'Go to the video or audio on any platform and copy the URL from your browser.' },
+        { n: '02', title: 'Paste the link', desc: 'Come back to AztarDL and paste using the "Paste" button or Ctrl+V.' },
+        { n: '03', title: 'Choose quality & format', desc: 'Click "Analyze" or press Enter. AztarDL will detect all available qualities and formats.' },
+        { n: '04', title: 'Download', desc: 'Select quality and format, click "Add to queue". The file downloads automatically.' },
+      ],
+      tips: {
+        title: 'Useful tips',
+        items: [
+          'Select "Audio only" tab to download just the audio.',
+          'For playlists, paste the playlist URL and click "Add all to queue".',
+          'Videos are downloaded in H.264 (compatible with all players).',
+          'AztarDL supports 1,000+ platforms powered by yt-dlp.',
+        ],
+      },
+    },
+  },
+
+  pt: {
+    nav: { howTo: 'Como usar?', contact: 'Contato' },
+    lang: 'Idioma',
+    theme: { dark: 'Modo escuro', light: 'Modo claro' },
+    home: {
+      badge: 'Grátis · Sem limites · Alta qualidade',
+      title: 'Baixe vídeos e áudios',
+      titleAccent: 'de qualquer plataforma',
+      subtitle: 'Cole um link do YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud e mais.',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: 'Colar', analyzeBtn: 'Analisar', analyzing: 'Analisando...', clearBtn: 'Limpar',
+    },
+    media: { by: 'Por', duration: 'Duração', platform: 'Plataforma', preview: 'Prévia', noDescription: 'Sem descrição.' },
+    download: {
+      title: 'Opções de download', selectQuality: 'Qualidade', selectFormat: 'Formato',
+      downloadBtn: 'Baixar', downloading: 'Baixando...', done: 'Pronto!',
+      typeVideo: 'Vídeo', typeAudio: 'Só áudio', audioOnly: 'Conteúdo de áudio',
+      audioFormats: 'Formato de áudio', addToQueue: 'Adicionar à fila',
+    },
+    queue: { title: 'Fila de downloads', waiting: 'Aguardando…', eta: 'Tempo restante', remove: 'Remover', clearDone: 'Limpar concluídos' },
+    playlist: { tag: 'Playlist', videos: 'vídeos', addAll: 'Adicionar tudo à fila', added: 'itens adicionados', contents: 'Conteúdo', more: 'mais' },
+    errors: { emptyUrl: 'Por favor insira um link.', invalid: 'Link inválido.', fetch: 'Não foi possível analisar.' },
+    howTo: {
+      title: 'Como usar o AztarDL?', subtitle: 'Baixe em 4 passos simples',
+      steps: [
+        { n: '01', title: 'Copie o link', desc: 'Vá ao vídeo ou áudio e copie o URL do navegador.' },
+        { n: '02', title: 'Cole o link', desc: 'Volte ao AztarDL e cole com "Colar" ou Ctrl+V.' },
+        { n: '03', title: 'Escolha qualidade e formato', desc: 'Clique em "Analisar" ou Enter.' },
+        { n: '04', title: 'Baixe', desc: 'Selecione e clique em "Adicionar à fila".' },
+      ],
+      tips: { title: 'Dicas', items: ['Selecione "Só áudio" para baixar apenas o áudio.', 'Para playlists, cole o link da lista.', 'Vídeos baixados em H.264.', 'Suporta +1.000 plataformas.'] },
+    },
+  },
+
+  fr: {
+    nav: { howTo: 'Comment utiliser?', contact: 'Contact' },
+    lang: 'Langue',
+    theme: { dark: 'Mode sombre', light: 'Mode clair' },
+    home: {
+      badge: 'Gratuit · Sans limites · Haute qualité',
+      title: 'Téléchargez vidéos et audios',
+      titleAccent: 'depuis n\'importe quelle plateforme',
+      subtitle: 'Collez un lien YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud et plus.',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: 'Coller', analyzeBtn: 'Analyser', analyzing: 'Analyse…', clearBtn: 'Effacer',
+    },
+    media: { by: 'Par', duration: 'Durée', platform: 'Plateforme', preview: 'Aperçu', noDescription: 'Aucune description.' },
+    download: {
+      title: 'Options', selectQuality: 'Qualité', selectFormat: 'Format',
+      downloadBtn: 'Télécharger', downloading: 'Téléchargement…', done: 'Prêt!',
+      typeVideo: 'Vidéo', typeAudio: 'Audio seul', audioOnly: 'Contenu audio',
+      audioFormats: 'Format audio', addToQueue: 'Ajouter à la file',
+    },
+    queue: { title: 'File de téléchargement', waiting: 'En attente…', eta: 'Temps restant', remove: 'Retirer', clearDone: 'Effacer terminés' },
+    playlist: { tag: 'Playlist', videos: 'vidéos', addAll: 'Tout ajouter à la file', added: 'éléments ajoutés', contents: 'Contenu', more: 'de plus' },
+    errors: { emptyUrl: 'Veuillez entrer un lien.', invalid: 'Lien invalide.', fetch: 'Impossible d\'analyser.' },
+    howTo: {
+      title: 'Comment utiliser AztarDL?', subtitle: 'Téléchargez en 4 étapes',
+      steps: [
+        { n: '01', title: 'Copiez le lien', desc: 'Allez sur la vidéo ou l\'audio et copiez l\'URL.' },
+        { n: '02', title: 'Collez le lien', desc: 'Revenez à AztarDL et collez avec "Coller" ou Ctrl+V.' },
+        { n: '03', title: 'Choisissez', desc: 'Cliquez sur "Analyser" ou Entrée.' },
+        { n: '04', title: 'Téléchargez', desc: 'Sélectionnez et cliquez "Ajouter à la file".' },
+      ],
+      tips: { title: 'Conseils', items: ['Sélectionnez "Audio seul" pour l\'audio uniquement.', 'Pour les playlists, collez le lien de la liste.', 'Vidéos en H.264 universel.', 'Compatible avec +1 000 plateformes.'] },
+    },
+  },
+
+  de: {
+    nav: { howTo: 'Wie benutzen?', contact: 'Kontakt' },
+    lang: 'Sprache',
+    theme: { dark: 'Dunkler Modus', light: 'Heller Modus' },
+    home: {
+      badge: 'Kostenlos · Unbegrenzt · Hohe Qualität',
+      title: 'Videos und Audios herunterladen',
+      titleAccent: 'von jeder Plattform',
+      subtitle: 'Füge einen Link von YouTube, TikTok, Instagram, Twitter, Vimeo, SoundCloud ein.',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: 'Einfügen', analyzeBtn: 'Analysieren', analyzing: 'Analysiere…', clearBtn: 'Löschen',
+    },
+    media: { by: 'Von', duration: 'Dauer', platform: 'Plattform', preview: 'Vorschau', noDescription: 'Keine Beschreibung.' },
+    download: {
+      title: 'Optionen', selectQuality: 'Qualität', selectFormat: 'Format',
+      downloadBtn: 'Herunterladen', downloading: 'Herunterladen…', done: 'Fertig!',
+      typeVideo: 'Video', typeAudio: 'Nur Audio', audioOnly: 'Audio-Inhalt',
+      audioFormats: 'Audioformat', addToQueue: 'Zur Warteschlange',
+    },
+    queue: { title: 'Download-Warteschlange', waiting: 'Wartet…', eta: 'Verbleibend', remove: 'Entfernen', clearDone: 'Abgeschlossene löschen' },
+    playlist: { tag: 'Playlist', videos: 'Videos', addAll: 'Alle in die Warteschlange', added: 'hinzugefügt', contents: 'Inhalt', more: 'weitere' },
+    errors: { emptyUrl: 'Bitte Link eingeben.', invalid: 'Ungültiger Link.', fetch: 'Analyse fehlgeschlagen.' },
+    howTo: {
+      title: 'Wie verwendet man AztarDL?', subtitle: 'Download in 4 Schritten',
+      steps: [
+        { n: '01', title: 'Link kopieren', desc: 'Gehe zur Seite und kopiere die URL.' },
+        { n: '02', title: 'Link einfügen', desc: 'Zurück zu AztarDL und Einfügen mit "Einfügen" oder Ctrl+V.' },
+        { n: '03', title: 'Auswählen', desc: 'Auf "Analysieren" klicken oder Enter drücken.' },
+        { n: '04', title: 'Herunterladen', desc: 'Qualität/Format wählen und zur Warteschlange hinzufügen.' },
+      ],
+      tips: { title: 'Tipps', items: ['"Nur Audio" für reinen Audio-Download.', 'Für Playlists den Playlist-Link einfügen.', 'Videos in universellem H.264.', 'Über 1.000 Plattformen unterstützt.'] },
+    },
+  },
+
+  ja: {
+    nav: { howTo: '使い方', contact: 'お問い合わせ' },
+    lang: '言語',
+    theme: { dark: 'ダークモード', light: 'ライトモード' },
+    home: {
+      badge: '無料 · 無制限 · 高品質',
+      title: '動画・音声をダウンロード',
+      titleAccent: 'あらゆるプラットフォームから',
+      subtitle: 'YouTube、TikTok、Instagram、Twitter、Vimeo、SoundCloudなどのリンクを貼り付けてください。',
+      placeholder: 'https://www.youtube.com/watch?v=...',
+      pastBtn: '貼り付け', analyzeBtn: '分析', analyzing: '分析中...', clearBtn: 'クリア',
+    },
+    media: { by: '投稿者', duration: '再生時間', platform: 'プラットフォーム', preview: 'プレビュー', noDescription: '説明なし。' },
+    download: {
+      title: 'ダウンロードオプション', selectQuality: '品質', selectFormat: 'フォーマット',
+      downloadBtn: 'ダウンロード', downloading: 'ダウンロード中...', done: '完了！',
+      typeVideo: '動画', typeAudio: '音声のみ', audioOnly: '音声コンテンツ',
+      audioFormats: '音声フォーマット', addToQueue: 'キューに追加',
+    },
+    queue: { title: 'ダウンロードキュー', waiting: '待機中…', eta: '残り時間', remove: '削除', clearDone: '完了分をクリア' },
+    playlist: { tag: 'プレイリスト', videos: '動画', addAll: 'すべてキューに追加', added: '件追加済み', contents: 'コンテンツ', more: 'さらに' },
+    errors: { emptyUrl: 'リンクを入力してください。', invalid: '無効なリンクです。', fetch: '分析できませんでした。' },
+    howTo: {
+      title: 'AztarDLの使い方', subtitle: '4ステップで簡単ダウンロード',
+      steps: [
+        { n: '01', title: 'リンクをコピー', desc: 'ダウンロードしたいコンテンツのURLをコピーしてください。' },
+        { n: '02', title: 'リンクを貼り付け', desc: '「貼り付け」ボタンまたはCtrl+Vで貼り付けてください。' },
+        { n: '03', title: '品質とフォーマットを選択', desc: '「分析」をクリックするかEnterを押してください。' },
+        { n: '04', title: 'ダウンロード', desc: '品質とフォーマットを選んで「キューに追加」してください。' },
+      ],
+      tips: { title: 'ヒント', items: ['「音声のみ」で音声だけをダウンロード。', 'プレイリストはリストのURLを貼り付け。', '動画はH.264で保存され互換性抜群。', 'yt-dlpにより1,000以上のプラットフォームに対応。'] },
+    },
+  },
+};
+
+export const langNames = {
+  es: { label: 'Español',    flag: '🇲🇽' },
+  en: { label: 'English',    flag: '🇺🇸' },
+  pt: { label: 'Português',  flag: '🇧🇷' },
+  fr: { label: 'Français',   flag: '🇫🇷' },
+  de: { label: 'Deutsch',    flag: '🇩🇪' },
+  ja: { label: '日本語',      flag: '🇯🇵' },
+};
