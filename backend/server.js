@@ -1,15 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { createReadStream, readdirSync, unlinkSync, statSync } from 'fs';
+import { join, basename } from 'path';
+import { createReadStream, readdirSync, unlinkSync, statSync, renameSync } from 'fs';
 import { randomUUID } from 'crypto';
 
-const execAsync = promisify(exec);
-const app = express();
+const execAsync     = promisify(exec);
+const execFileAsync = promisify(execFile);
+const app  = express();
 const PORT = process.env.PORT || 3001;
 const jobs = new Map();
 
@@ -17,15 +18,18 @@ app.use(cors({ origin: '*' }));
 app.use(morgan('dev'));
 app.use(express.json());
 
-async function checkYtdlp() {
-  try {
-    const { stdout } = await execAsync('yt-dlp --version');
-    console.log(`✅ yt-dlp: ${stdout.trim()}`);
-  } catch {
-    console.warn('⚠️  yt-dlp no encontrado en PATH');
+// ── Startup checks ────────────────────────────────────────────────────────────
+async function checkTools() {
+  for (const tool of ['yt-dlp', 'ffmpeg', 'ffprobe']) {
+    try {
+      const { stdout } = await execAsync(`${tool} --version 2>&1 || ${tool} -version 2>&1`);
+      console.log(`✅ ${tool}: ${stdout.split('\n')[0].trim()}`);
+    } catch {
+      console.warn(`⚠️  ${tool} no encontrado en PATH`);
+    }
   }
 }
-checkYtdlp();
+checkTools();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatFileSize(bytes) {
@@ -43,8 +47,8 @@ function sanitizeFilename(name = 'video') {
 function parseProgress(line) {
   const m = line.match(/\[download\]\s+([\d.]+)%.*?at\s+([\d.]+\s*\w+\/s).*?ETA\s+([\d:]+)/);
   if (m) return { percent: parseFloat(m[1]), speed: m[2].trim(), eta: m[3] };
-  if (line.includes('[Merger]') || line.includes('Merging formats')) return { percent: 99, speed: null, eta: '0:01' };
-  if (line.includes('[ExtractAudio]')) return { percent: 99, speed: null, eta: '0:01' };
+  if (line.includes('[Merger]') || line.includes('Merging formats')) return { percent: 95, speed: null, eta: '0:05' };
+  if (line.includes('[ExtractAudio]') || line.includes('Destination:')) return { percent: 97, speed: null, eta: '0:03' };
   return null;
 }
 
@@ -60,33 +64,88 @@ function notifyClients(job) {
   }
 }
 
-// ── Anti-bot bypass flags ─────────────────────────────────────────────────────
-// These args are added to every yt-dlp call to bypass bot detection on
-// YouTube, TikTok, Instagram and similar platforms when running from a server.
+// ── Detect video codec with ffprobe ──────────────────────────────────────────
+async function getVideoCodec(filePath) {
+  try {
+    const { stdout } = await execAsync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
+    );
+    return stdout.trim().toLowerCase(); // e.g. "hevc", "h264", "av1", "vp9"
+  } catch {
+    return null;
+  }
+}
+
+// ── Re-encode HEVC/AV1/VP9 → H.264 with ffmpeg ───────────────────────────────
+// Returns path to the new H.264 file (replaces original).
+async function reencodeToH264(inputPath, onProgress) {
+  const ext = inputPath.split('.').pop();
+  const outPath = inputPath.replace(`.${ext}`, `_h264.mp4`);
+
+  await new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', [
+      '-i', inputPath,
+      '-c:v', 'libx264',
+      '-preset', 'fast',     // fast encode, good quality
+      '-crf', '23',          // quality factor (18=best, 28=worst, 23=balanced)
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-movflags', '+faststart',
+      '-y',                  // overwrite output
+      outPath,
+    ]);
+
+    ff.stderr.on('data', (d) => {
+      const line = d.toString();
+      // Parse ffmpeg progress: "frame= 123 fps= 30 ... time=00:00:05"
+      const t = line.match(/time=(\d+):(\d+):(\d+)/);
+      if (t && onProgress) onProgress(t[0]);
+    });
+
+    ff.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited with code ${code}`));
+    });
+    ff.on('error', reject);
+  });
+
+  // Delete original, keep H.264 version
+  try { unlinkSync(inputPath); } catch {}
+  return outPath;
+}
+
+// ── Anti-bot bypass args ──────────────────────────────────────────────────────
+// KEY FIX: Use "tv" player client for YouTube.
+// The Smart TV client bypasses YouTube's datacenter IP bot-checks that
+// block "android" and "web" clients since early 2025.
 const BYPASS_ARGS = [
-  // YouTube: use Android client (no bot check) then TV client as fallback
-  '--extractor-args', 'youtube:player_client=android,web',
-  // Realistic browser User-Agent
-  '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-  // Add common browser headers
+  '--extractor-args', 'youtube:player_client=tv,ios',
+  '--user-agent', 'Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/2.1 Chrome/56.0.2924.0 TV Safari/537.36',
   '--add-headers', 'Accept-Language:en-US,en;q=0.9',
-  '--add-headers', 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  // Retry on network errors
-  '--retries', '3',
-  '--fragment-retries', '3',
-  // Sleep between requests to avoid rate limiting
+  '--retries', '4',
+  '--fragment-retries', '4',
   '--sleep-requests', '1',
+  '--no-check-certificates',
 ];
 
-// ── H.264 preferred format selector ──────────────────────────────────────────
+// ── H.264 format selector (aggressive) ───────────────────────────────────────
+// Tries hard to get H.264. If nothing found, falls back to "best" and
+// the re-encode step will convert it to H.264 afterwards.
 function buildVideoFormatSelector(height) {
   const h = parseInt(height, 10) || 1080;
   return [
+    // Exact H.264 in MP4 container — best case
     `bestvideo[height<=${h}][vcodec^=avc][ext=mp4]+bestaudio[acodec^=mp4a][ext=m4a]`,
+    `bestvideo[height<=${h}][vcodec^=avc][ext=mp4]+bestaudio`,
+    // H.264 any container
     `bestvideo[height<=${h}][vcodec^=avc]+bestaudio[acodec^=mp4a]`,
     `bestvideo[height<=${h}][vcodec^=avc]+bestaudio`,
-    `bestvideo[height<=${h}][vcodec!*=av01][vcodec!*=vp09][vcodec!*=hvc1][vcodec!*=hev1]+bestaudio`,
+    // H.264 in single-stream format
+    `best[height<=${h}][vcodec^=avc][ext=mp4]`,
     `best[height<=${h}][vcodec^=avc]`,
+    // No HEVC/AV1 — accept VP9 (better than HEVC compatibility-wise)
+    `bestvideo[height<=${h}][vcodec!*=hvc1][vcodec!*=hev1][vcodec!*=av01]+bestaudio`,
+    // Last resort — any quality, re-encode will fix the codec
     `best[height<=${h}]`,
     'best',
   ].join('/');
@@ -105,7 +164,6 @@ app.get('/api/info', async (req, res) => {
     safeUrl.includes('/collection') ||
     (safeUrl.includes('list=') && !safeUrl.includes('watch?v='));
 
-  // Build bypass args as string for execAsync
   const bypassStr = BYPASS_ARGS.map(a => `"${a}"`).join(' ');
 
   try {
@@ -115,7 +173,6 @@ app.get('/api/info', async (req, res) => {
         { timeout: 60000 }
       );
       const info = JSON.parse(stdout);
-
       if (info._type === 'playlist' || Array.isArray(info.entries)) {
         const entries = (info.entries || []).slice(0, 200).map(e => ({
           id: e.id || randomUUID(),
@@ -126,7 +183,6 @@ app.get('/api/info', async (req, res) => {
           duration: e.duration || null,
           thumbnail: e.thumbnail || e.thumbnails?.[0]?.url || null,
         }));
-
         return res.json({
           isPlaylist: true,
           title: info.title || 'Playlist',
@@ -141,9 +197,9 @@ app.get('/api/info', async (req, res) => {
     // Single video/audio
     const { stdout } = await execAsync(
       `yt-dlp --no-playlist --dump-json --no-warnings ${bypassStr} "${safeUrl}"`,
-      { timeout: 45000 }
+      { timeout: 50000 }
     );
-    const info = JSON.parse(stdout);
+    const info    = JSON.parse(stdout);
     const formats = info.formats || [];
 
     const heightSeen = new Set();
@@ -175,20 +231,20 @@ app.get('/api/info', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[/api/info]', err.message?.slice(0, 300));
+    console.error('[/api/info]', err.message?.slice(0, 400));
     const msg =
       err.message?.includes('Sign in') || err.message?.includes('bot')
-        ? 'YouTube requiere autenticación en servidores. Prueba con un video de otra plataforma o usa Twitter/X, Vimeo, SoundCloud.'
-        : err.message?.includes('Unsupported URL') ? 'URL no compatible o no encontrada.'
-        : err.message?.includes('timeout') ? 'Tiempo de espera agotado.'
-        : err.message?.includes('Private') ? 'Este video es privado.'
-        : err.message?.includes('Unable to extract') ? 'No se pudo extraer el video. La plataforma puede estar bloqueando accesos desde servidores.'
+        ? 'YouTube detectó el servidor. Espera unos minutos e intenta de nuevo.'
+        : err.message?.includes('Unsupported URL')  ? 'URL no compatible o no encontrada.'
+        : err.message?.includes('timeout')          ? 'Tiempo de espera agotado. Intenta de nuevo.'
+        : err.message?.includes('Private')          ? 'Este video es privado.'
+        : err.message?.includes('Unable to extract')? 'No se pudo extraer el video de esta plataforma.'
         : 'No se pudo analizar el enlace. Verifica que sea válido y público.';
     res.status(500).json({ error: msg });
   }
 });
 
-// ── POST /api/jobs ────────────────────────────────────────────────────────────
+// ── POST /api/jobs — iniciar descarga en background ──────────────────────────
 app.post('/api/jobs', (req, res) => {
   const { url, type = 'video', quality = '1080', format = 'mp4', title = 'video' } = req.body;
   if (!url) return res.status(400).json({ error: 'Falta la URL.' });
@@ -220,12 +276,13 @@ app.post('/api/jobs', (req, res) => {
     args = [
       ...BYPASS_ARGS,
       '-f', buildVideoFormatSelector(quality),
-      '--merge-output-format', format === 'webm' ? 'webm' : 'mp4',
+      '--merge-output-format', 'mp4',
       '-o', tempTemplate,
       '--no-playlist', '--no-warnings', url,
     ];
   }
 
+  // Run yt-dlp as child process
   const ytdlp = spawn('yt-dlp', args);
 
   const handleLine = (line) => {
@@ -241,26 +298,56 @@ app.post('/api/jobs', (req, res) => {
   ytdlp.stdout.on('data', d => d.toString().split('\n').forEach(handleLine));
   ytdlp.stderr.on('data', d => d.toString().split('\n').forEach(handleLine));
 
-  ytdlp.on('close', (code) => {
-    const files = readdirSync(tmpdir()).filter(f => f.startsWith(`aztardl_${tempId}`) && !f.endsWith('.part'));
+  ytdlp.on('close', async (code) => {
+    const files = readdirSync(tmpdir())
+      .filter(f => f.startsWith(`aztardl_${tempId}`) && !f.endsWith('.part') && !f.endsWith('.ytdl'));
 
-    if (code === 0 && files.length) {
-      const outFile  = files[0];
-      job.filePath   = join(tmpdir(), outFile);
-      job.ext        = outFile.split('.').pop();
-      job.filename   = `${safeTitle}.${job.ext}`;
-      job.progress   = 100;
-      job.status     = 'done';
-    } else {
+    if (code !== 0 || !files.length) {
       job.status = 'error';
       job.error  = 'La descarga falló. Prueba otra calidad o formato.';
-      files.forEach(f => { try { unlinkSync(join(tmpdir(), f)); } catch {} });
+      notifyClients(job);
+      job.sseClients.forEach(c => { try { c.end(); } catch {} });
+      job.sseClients = [];
+      return;
     }
+
+    let outFile = join(tmpdir(), files[0]);
+    let ext     = files[0].split('.').pop().toLowerCase();
+
+    // ── Re-encode to H.264 if video is HEVC/AV1/VP9 ──────────────────────
+    if (type === 'video' && ['mp4','mkv','webm','mov'].includes(ext)) {
+      try {
+        const codec = await getVideoCodec(outFile);
+        console.log(`[codec check] ${files[0]} → ${codec}`);
+
+        const needsReencode = codec && ['hevc','hev1','hvc1','av1','vp9','vp8'].includes(codec);
+        if (needsReencode) {
+          console.log(`[re-encode] ${codec} → H.264 ...`);
+          job.eta = 'convirtiendo…';
+          notifyClients(job);
+
+          outFile = await reencodeToH264(outFile, () => {});
+          ext = 'mp4';
+          console.log(`[re-encode] ✅ done → ${basename(outFile)}`);
+        }
+      } catch (encErr) {
+        console.error('[re-encode] failed:', encErr.message);
+        // Continue with original file even if re-encode failed
+      }
+    }
+
+    job.filePath = outFile;
+    job.ext      = ext;
+    job.filename = `${safeTitle}.${ext}`;
+    job.progress = 100;
+    job.status   = 'done';
+    job.eta      = null;
 
     notifyClients(job);
     job.sseClients.forEach(c => { try { c.end(); } catch {} });
     job.sseClients = [];
 
+    // Auto-delete after 10 minutes
     setTimeout(() => {
       if (job.filePath) { try { unlinkSync(job.filePath); } catch {} }
       jobs.delete(jobId);
