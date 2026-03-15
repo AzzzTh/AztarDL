@@ -27,6 +27,7 @@ export const translations = {
       added: 'elementos agregados', contents: 'Contenido', more: 'más',
     },
     errors: { emptyUrl: 'Por favor ingresa un enlace.', invalid: 'Enlace no válido o no compatible.', fetch: 'No se pudo analizar. Verifica el enlace.' },
+    cookies: { title: 'Cookies del navegador', hint: 'Úsalo para descargar videos con restricción de edad o inicio de sesión.' },
     howTo: {
       title: '¿Cómo usar AztarDL?', subtitle: 'Descarga en 4 pasos simples',
       steps: [
@@ -75,6 +76,7 @@ export const translations = {
       added: 'items added', contents: 'Contents', more: 'more',
     },
     errors: { emptyUrl: 'Please enter a link.', invalid: 'Invalid or unsupported link.', fetch: 'Could not analyze. Check the link.' },
+    cookies: { title: 'Browser cookies', hint: 'Use this to download age-restricted or login-required videos.' },
     howTo: {
       title: 'How to use AztarDL?', subtitle: 'Download in 4 simple steps',
       steps: [
@@ -117,6 +119,7 @@ export const translations = {
     queue: { title: 'Fila de downloads', waiting: 'Aguardando…', eta: 'Tempo restante', remove: 'Remover', clearDone: 'Limpar concluídos' },
     playlist: { tag: 'Playlist', videos: 'vídeos', addAll: 'Adicionar tudo à fila', added: 'itens adicionados', contents: 'Conteúdo', more: 'mais' },
     errors: { emptyUrl: 'Por favor insira um link.', invalid: 'Link inválido.', fetch: 'Não foi possível analisar.' },
+    cookies: { title: 'Cookies do navegador', hint: 'Use para baixar vídeos com restrição de idade ou login.' },
     howTo: {
       title: 'Como usar o AztarDL?', subtitle: 'Baixe em 4 passos simples',
       steps: [
@@ -151,6 +154,7 @@ export const translations = {
     queue: { title: 'File de téléchargement', waiting: 'En attente…', eta: 'Temps restant', remove: 'Retirer', clearDone: 'Effacer terminés' },
     playlist: { tag: 'Playlist', videos: 'vidéos', addAll: 'Tout ajouter à la file', added: 'éléments ajoutés', contents: 'Contenu', more: 'de plus' },
     errors: { emptyUrl: 'Veuillez entrer un lien.', invalid: 'Lien invalide.', fetch: 'Impossible d\'analyser.' },
+    cookies: { title: 'Cookies du navigateur', hint: 'Pour télécharger des vidéos avec restriction d\'âge ou connexion.' },
     howTo: {
       title: 'Comment utiliser AztarDL?', subtitle: 'Téléchargez en 4 étapes',
       steps: [
@@ -185,6 +189,7 @@ export const translations = {
     queue: { title: 'Download-Warteschlange', waiting: 'Wartet…', eta: 'Verbleibend', remove: 'Entfernen', clearDone: 'Abgeschlossene löschen' },
     playlist: { tag: 'Playlist', videos: 'Videos', addAll: 'Alle in die Warteschlange', added: 'hinzugefügt', contents: 'Inhalt', more: 'weitere' },
     errors: { emptyUrl: 'Bitte Link eingeben.', invalid: 'Ungültiger Link.', fetch: 'Analyse fehlgeschlagen.' },
+    cookies: { title: 'Browser-Cookies', hint: 'Für Videos mit Altersbeschränkung oder Login-Pflicht.' },
     howTo: {
       title: 'Wie verwendet man AztarDL?', subtitle: 'Download in 4 Schritten',
       steps: [
@@ -219,6 +224,7 @@ export const translations = {
     queue: { title: 'ダウンロードキュー', waiting: '待機中…', eta: '残り時間', remove: '削除', clearDone: '完了分をクリア' },
     playlist: { tag: 'プレイリスト', videos: '動画', addAll: 'すべてキューに追加', added: '件追加済み', contents: 'コンテンツ', more: 'さらに' },
     errors: { emptyUrl: 'リンクを入力してください。', invalid: '無効なリンクです。', fetch: '分析できませんでした。' },
+    cookies: { title: 'ブラウザのCookie', hint: '年齢制限やログインが必要な動画をダウンロードする際に使用。' },
     howTo: {
       title: 'AztarDLの使い方', subtitle: '4ステップで簡単ダウンロード',
       steps: [
