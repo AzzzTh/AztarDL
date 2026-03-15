@@ -25,7 +25,6 @@ export const translations = {
     playlist: {
       tag: 'Playlist', videos: 'videos', addAll: 'Agregar seleccionados a la cola',
       added: 'elementos agregados', contents: 'Contenido', more: 'más',
-    ,
       selectAll: 'Seleccionar todo', deselectAll: 'Deseleccionar todo',
     },
     errors: { emptyUrl: 'Por favor ingresa un enlace.', invalid: 'Enlace no válido o no compatible.', fetch: 'No se pudo analizar. Verifica el enlace.' },
@@ -76,7 +75,6 @@ export const translations = {
     playlist: {
       tag: 'Playlist', videos: 'videos', addAll: 'Add selected to queue',
       added: 'items added', contents: 'Contents', more: 'more',
-    ,
       selectAll: 'Select all', deselectAll: 'Deselect all',
     },
     errors: { emptyUrl: 'Please enter a link.', invalid: 'Invalid or unsupported link.', fetch: 'Could not analyze. Check the link.' },
