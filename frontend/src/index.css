@@ -477,3 +477,65 @@ body::before {
   .header-center { display: none; }
   .input-btn.paste-btn span { display: none; }
 }
+
+/* ── Playlist selection UI ──────────────────────────────────────────────────── */
+.playlist-select-all-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.pl-select-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-head);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pl-select-all-btn:hover { color: var(--gold); background: var(--gold-dim); }
+
+.pl-count-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-3);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.playlist-entry--selectable {
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--transition);
+}
+.playlist-entry--selectable:hover { border-color: var(--border-h); background: var(--gold-dim); }
+.playlist-entry--selectable:focus { outline: 1px solid var(--gold); }
+.playlist-entry--checked { border-color: rgba(200,151,43,0.35) !important; }
+[data-theme="light"] .playlist-entry--checked { border-color: rgba(160,112,32,0.3) !important; }
+
+.pe-checkbox { flex-shrink: 0; display: flex; align-items: center; }
+
+.pe-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pe-dur {
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  color: var(--text-3);
+}

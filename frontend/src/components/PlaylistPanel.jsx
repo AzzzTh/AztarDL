@@ -1,19 +1,57 @@
-import { useState } from 'react';
-import { ListVideo, Film, Music, Plus, User } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ListVideo, Film, Music, Plus, User, CheckSquare, Square, MinusSquare } from 'lucide-react';
 import { useApp } from '../context/AppContext.jsx';
 import { useQueue } from '../context/QueueContext.jsx';
+
+function formatDuration(sec) {
+  if (!sec) return null;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 export default function PlaylistPanel({ info }) {
   const { t } = useApp();
   const { addToQueue } = useQueue();
 
+  // Download options
   const [dlType,   setDlType]   = useState('video');
   const [videoFmt, setVideoFmt] = useState('mp4');
   const [audioFmt, setAudioFmt] = useState('mp3');
   const [added,    setAdded]    = useState(false);
 
-  const handleAddAll = () => {
-    const queueItems = info.entries.map(e => ({
+  // Selection: Set of entry IDs that are checked
+  const [selected, setSelected] = useState(
+    () => new Set(info.entries.map(e => e.id))   // all selected by default
+  );
+
+  const allSelected  = selected.size === info.entries.length;
+  const noneSelected = selected.size === 0;
+  const someSelected = !allSelected && !noneSelected;
+
+  const toggleEntry = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll   = () => setSelected(new Set(info.entries.map(e => e.id)));
+  const deselectAll = () => setSelected(new Set());
+  const toggleAll   = () => allSelected ? deselectAll() : selectAll();
+
+  const selectedEntries = useMemo(
+    () => info.entries.filter(e => selected.has(e.id)),
+    [info.entries, selected]
+  );
+
+  const handleAddSelected = () => {
+    if (!selectedEntries.length) return;
+    const queueItems = selectedEntries.map(e => ({
       title:   e.title,
       url:     e.url,
       type:    dlType,
@@ -30,7 +68,8 @@ export default function PlaylistPanel({ info }) {
 
   return (
     <div className="playlist-panel">
-      {/* Header info */}
+
+      {/* ── Header ── */}
       <div className="playlist-header">
         <div className="playlist-thumb-wrap">
           {info.thumbnail
@@ -53,21 +92,19 @@ export default function PlaylistPanel({ info }) {
         </div>
       </div>
 
-      {/* Download options */}
+      {/* ── Format options ── */}
       <div className="playlist-options">
         <div>
           <p className="panel-section-title">{t.download.title}</p>
           <div className="type-tabs" role="tablist">
             <button role="tab" aria-selected={dlType === 'video'}
               className={`type-tab${dlType === 'video' ? ' active' : ''}`}
-              onClick={() => setDlType('video')}
-            >
+              onClick={() => setDlType('video')}>
               <Film size={14} /> {t.download.typeVideo}
             </button>
             <button role="tab" aria-selected={dlType === 'audio'}
               className={`type-tab${dlType === 'audio' ? ' active' : ''}`}
-              onClick={() => setDlType('audio')}
-            >
+              onClick={() => setDlType('audio')}>
               <Music size={14} /> {t.download.typeAudio}
             </button>
           </div>
@@ -81,8 +118,7 @@ export default function PlaylistPanel({ info }) {
               return (
                 <button key={f} role="radio" aria-checked={sel}
                   className={`format-chip${sel ? ' selected' : ''}`}
-                  onClick={() => dlType === 'video' ? setVideoFmt(f) : setAudioFmt(f)}
-                >
+                  onClick={() => dlType === 'video' ? setVideoFmt(f) : setAudioFmt(f)}>
                   {f.toUpperCase()}
                 </button>
               );
@@ -90,32 +126,79 @@ export default function PlaylistPanel({ info }) {
           </div>
         </div>
 
-        <button className="download-btn" onClick={handleAddAll} disabled={added}>
+        <button
+          className="download-btn"
+          onClick={handleAddSelected}
+          disabled={added || selectedEntries.length === 0}>
           <Plus size={17} />
           <span>
             {added
-              ? `✓ ${info.entryCount} ${t.playlist.added}`
-              : `${t.playlist.addAll} (${info.entryCount})`}
+              ? `✓ ${selectedEntries.length} ${t.playlist.added}`
+              : `${t.playlist.addAll} (${selectedEntries.length})`}
           </span>
         </button>
       </div>
 
-      {/* Preview of entries */}
+      {/* ── Entry list with checkboxes ── */}
       <div className="playlist-entries">
-        <p className="panel-section-title">{t.playlist.contents}</p>
+        {/* Select all row */}
+        <div className="playlist-select-all-row">
+          <button
+            className="pl-select-all-btn"
+            onClick={toggleAll}
+            title={allSelected ? t.playlist.deselectAll : t.playlist.selectAll}>
+            {allSelected   ? <CheckSquare size={15} style={{ color: 'var(--gold)' }} /> :
+             someSelected  ? <MinusSquare size={15} style={{ color: 'var(--gold)' }} /> :
+                             <Square      size={15} />}
+            <span>
+              {allSelected ? t.playlist.deselectAll : t.playlist.selectAll}
+              {' '}
+              <span className="pl-count-label">
+                ({selected.size}/{info.entries.length})
+              </span>
+            </span>
+          </button>
+        </div>
+
+        {/* Entries */}
         <div className="playlist-entry-list">
-          {info.entries.slice(0, 10).map((e, i) => (
-            <div key={e.id} className="playlist-entry">
-              <span className="pe-index">{i + 1}</span>
-              {e.thumbnail && <img src={e.thumbnail} alt="" className="pe-thumb" loading="lazy" />}
-              <span className="pe-title" title={e.title}>{e.title}</span>
-            </div>
-          ))}
-          {info.entries.length > 10 && (
-            <div className="playlist-entry playlist-entry--more">
-              + {info.entries.length - 10} {t.playlist.more}
-            </div>
-          )}
+          {info.entries.map((e, i) => {
+            const isChecked = selected.has(e.id);
+            return (
+              <div
+                key={e.id}
+                className={`playlist-entry playlist-entry--selectable${isChecked ? ' playlist-entry--checked' : ''}`}
+                onClick={() => toggleEntry(e.id)}
+                role="checkbox"
+                aria-checked={isChecked}
+                tabIndex={0}
+                onKeyDown={ev => ev.key === ' ' && toggleEntry(e.id)}
+              >
+                {/* Checkbox */}
+                <div className="pe-checkbox">
+                  {isChecked
+                    ? <CheckSquare size={14} style={{ color: 'var(--gold)' }} />
+                    : <Square      size={14} style={{ color: 'var(--text-3)' }} />}
+                </div>
+
+                {/* Index */}
+                <span className="pe-index">{i + 1}</span>
+
+                {/* Thumbnail */}
+                {e.thumbnail && (
+                  <img src={e.thumbnail} alt="" className="pe-thumb" loading="lazy" />
+                )}
+
+                {/* Title + duration */}
+                <div className="pe-info">
+                  <span className="pe-title" title={e.title}>{e.title}</span>
+                  {e.duration && (
+                    <span className="pe-dur">{formatDuration(e.duration)}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
